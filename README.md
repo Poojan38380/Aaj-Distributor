@@ -44,9 +44,11 @@ npm install
 cp .env.example .env.local
 ```
 
-4. Update the `.env.local` file with your MongoDB connection string:
+4. Update the `.env.local` file with your configuration:
 ```
 DATABASE_URL="mongodb://localhost:27017/aaj-distributor"
+ADMIN_PASSWORD="your-secure-password"
+JWT_SECRET="your-super-secret-jwt-key"
 ```
 
 5. Set up the database:
@@ -85,11 +87,21 @@ npm run dev
 - **Delete Items**: Remove items completely
 - **Real-time Sync**: All changes are immediately reflected on the public homepage
 
+## Security Features
+
+- **Server-side Authentication**: Password verification happens on the server
+- **JWT Tokens**: Secure token-based authentication with 24-hour expiration
+- **HTTP-only Cookies**: Tokens stored in secure, HTTP-only cookies
+- **Middleware Protection**: Admin routes protected by middleware
+- **Environment Variables**: Sensitive data stored in environment variables
+- **No Client-side Secrets**: No sensitive data exposed to the browser
+
 ## Security Notes
 
-- Change the default admin password in production
-- Consider implementing proper authentication for production use
-- The current implementation uses localStorage for session management
+- Change the default admin password and JWT secret in production
+- Use strong, unique passwords and JWT secrets
+- The application uses secure HTTP-only cookies for session management
+- All authentication happens server-side for maximum security
 
 ## Database Schema
 
