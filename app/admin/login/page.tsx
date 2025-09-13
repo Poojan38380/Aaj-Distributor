@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { authenticateAdmin } from '@/lib/auth'
 
@@ -10,7 +9,6 @@ export default function AdminLogin() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,8 +19,8 @@ export default function AdminLogin() {
       const result = await authenticateAdmin(password)
       
       if (result.success) {
-        router.push('/admin')
-        router.refresh() // Refresh to ensure middleware runs
+        // Use window.location.href for a full page reload to ensure middleware runs
+        window.location.href = '/admin'
       } else {
         setError(result.error || 'Invalid password')
       }

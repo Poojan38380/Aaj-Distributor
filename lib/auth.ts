@@ -11,9 +11,6 @@ export async function authenticateAdmin(password: string) {
     if (password !== ADMIN_PASSWORD) {
       return { success: false, error: 'Invalid password' }
     }
-    console.log('Authenticating admin with password:', password)
-    console.log('ADMIN_PASSWORD:', ADMIN_PASSWORD)
-
     // Create JWT token
     const token = jwt.sign(
       { 

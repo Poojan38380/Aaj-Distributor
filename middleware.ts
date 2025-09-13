@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import jwt from 'jsonwebtoken'
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
 
 export function middleware(request: NextRequest) {
   // Only protect admin routes
@@ -13,15 +10,8 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/admin/login', request.url))
     }
 
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET) as { admin: boolean; timestamp: number }
-      
-      if (!decoded.admin) {
-        return NextResponse.redirect(new URL('/admin/login', request.url))
-      }
-    } catch {
-      return NextResponse.redirect(new URL('/admin/login', request.url))
-    }
+    // Simple token existence check
+    // Proper JWT verification happens in the admin page component
   }
 
   return NextResponse.next()

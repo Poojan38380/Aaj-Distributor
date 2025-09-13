@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getStock, addStock, updateStock, deleteStock, updateStockQuantity } from '@/lib/actions'
-import { logoutAdmin } from '@/lib/auth'
+import { logoutAdmin, verifyAdminToken } from '@/lib/auth'
 import Link from 'next/link'
 
 interface StockItem {
@@ -30,9 +30,26 @@ export default function AdminDashboard() {
   const router = useRouter()
 
   useEffect(() => {
-    // Check authentication - we'll verify on the server side
-    loadStock()
+    // Check authentication and load stock
+    checkAuthAndLoadStock()
   }, [])
+
+  const checkAuthAndLoadStock = async () => {
+    try {
+      // Verify authentication first
+      const authResult = await verifyAdminToken()
+      if (!authResult.success) {
+        router.push('/admin/login')
+        return
+      }
+      
+      // If authenticated, load stock
+      await loadStock()
+    } catch (error) {
+      console.error('Auth check failed:', error)
+      router.push('/admin/login')
+    }
+  }
 
   const loadStock = async () => {
     try {
@@ -254,7 +271,7 @@ export default function AdminDashboard() {
                   {item.quantity} available
                 </p>
                 <p className="text-lg text-gray-600 dark:text-gray-300">
-                  ₹{item.price} per pack
+                  ₹{item.price}
                 </p>
                 {item.description && (
                   <p className="text-sm text-gray-500 dark:text-gray-400">

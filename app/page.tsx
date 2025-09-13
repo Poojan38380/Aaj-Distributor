@@ -1,5 +1,4 @@
 import { getStock } from '@/lib/actions'
-import Link from 'next/link'
 
 export default async function Home() {
   const stock = await getStock()
@@ -43,7 +42,7 @@ export default async function Home() {
                     {item.quantity} available
                   </p>
                   <p className="text-lg text-gray-600 dark:text-gray-300">
-                    ₹{item.price} per pack
+                    ₹{item.price}
                   </p>
                   {item.description && (
                     <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -60,16 +59,6 @@ export default async function Home() {
               </p>
             </div>
           )}
-        </div>
-
-        {/* Admin Link */}
-        <div className="text-center">
-          <Link
-            href="/admin"
-            className="inline-flex items-center px-6 py-3 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
-          >
-            Admin Dashboard
-          </Link>
         </div>
       </div>
     </div>
