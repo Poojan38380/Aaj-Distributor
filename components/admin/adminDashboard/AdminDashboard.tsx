@@ -6,7 +6,10 @@ import Link from 'next/link'
 import { getStock, addStock, updateStock, deleteStock, updateStockQuantity } from '@/lib/actions'
 import { logoutAdmin, verifyAdminToken } from '@/lib/auth'
 import { toast } from 'sonner'
-import { StockItem, FormData, QuantityInputs, AddEditDialog, StockList, Header } from '@/components/admin/adminDashboard'
+import { Header } from './Header'
+import { StockList } from './StockList'
+import { AddEditDialog } from './AddEditDialog'
+import { StockItem, FormData, QuantityInputs } from './types'
 
 export function AdminDashboard() {
   const [stock, setStock] = useState<StockItem[]>([])
