@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getStock, addStock, updateStock, deleteStock, updateStockQuantity } from '@/lib/actions'
 import { logoutAdmin, verifyAdminToken } from '@/lib/auth'
 import Link from 'next/link'
+import { Edit, Trash2, Plus, Minus } from 'lucide-react'
 
 interface StockItem {
   id: string
@@ -27,6 +28,7 @@ export default function AdminDashboard() {
     price: 0,
     description: ''
   })
+  const [quantityInputs, setQuantityInputs] = useState<{ [key: string]: string }>({})
   const router = useRouter()
 
   useEffect(() => {
@@ -111,6 +113,46 @@ export default function AdminDashboard() {
     if (result.success) {
       loadStock()
     }
+  }
+
+  const handleAddQuantity = async (id: string) => {
+    const amount = parseInt(quantityInputs[id] || '0')
+    if (isNaN(amount) || amount <= 0) return
+    
+    const item = stock.find(item => item.id === id)
+    if (!item) return
+    
+    const confirmed = confirm(`Add ${amount} units to ${item.brand}? New total will be ${item.quantity + amount}.`)
+    if (!confirmed) return
+    
+    const newQuantity = item.quantity + amount
+    const result = await updateStockQuantity(id, newQuantity)
+    if (result.success) {
+      setQuantityInputs(prev => ({ ...prev, [id]: '' }))
+      loadStock()
+    }
+  }
+
+  const handleRemoveQuantity = async (id: string) => {
+    const amount = parseInt(quantityInputs[id] || '0')
+    if (isNaN(amount) || amount <= 0) return
+    
+    const item = stock.find(item => item.id === id)
+    if (!item) return
+    
+    const newQuantity = Math.max(0, item.quantity - amount)
+    const confirmed = confirm(`Remove ${amount} units from ${item.brand}? New total will be ${newQuantity}.`)
+    if (!confirmed) return
+    
+    const result = await updateStockQuantity(id, newQuantity)
+    if (result.success) {
+      setQuantityInputs(prev => ({ ...prev, [id]: '' }))
+      loadStock()
+    }
+  }
+
+  const handleQuantityInputChange = (id: string, value: string) => {
+    setQuantityInputs(prev => ({ ...prev, [id]: value }))
   }
 
   const startEdit = (item: StockItem) => {
@@ -280,50 +322,49 @@ export default function AdminDashboard() {
                 )}
               </div>
               
-              {/* Quick quantity update */}
-              <div className="flex gap-2 mb-4">
-                <input
-                  type="number"
-                  placeholder="New qty"
-                  className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-white"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      const newQty = parseInt((e.target as HTMLInputElement).value)
-                      if (!isNaN(newQty)) {
-                        handleQuantityUpdate(item.id, newQty)
-                        ;(e.target as HTMLInputElement).value = ''
-                      }
-                    }
-                  }}
-                />
-                <button
-                  onClick={() => {
-                    const input = document.querySelector(`input[placeholder="New qty"]`) as HTMLInputElement
-                    const newQty = parseInt(input.value)
-                    if (!isNaN(newQty)) {
-                      handleQuantityUpdate(item.id, newQty)
-                      input.value = ''
-                    }
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors"
-                >
-                  Update
-                </button>
+              {/* Quantity controls */}
+              <div className="mb-4">
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    value={quantityInputs[item.id] || ''}
+                    onChange={(e) => handleQuantityInputChange(item.id, e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    min="1"
+                  />
+                  <button
+                    onClick={() => handleAddQuantity(item.id)}
+                    className="bg-green-600 hover:bg-green-700 text-white p-2 rounded text-sm transition-colors flex items-center justify-center"
+                    title="Add quantity"
+                  >
+                    <Plus size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleRemoveQuantity(item.id)}
+                    className="bg-orange-600 hover:bg-orange-700 text-white p-2 rounded text-sm transition-colors flex items-center justify-center"
+                    title="Remove quantity"
+                  >
+                    <Minus size={16} />
+                  </button>
+                </div>
               </div>
 
               {/* Action buttons */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 justify-end">
                 <button
                   onClick={() => startEdit(item)}
-                  className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2 px-3 rounded text-sm transition-colors"
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white p-2 rounded text-sm transition-colors flex items-center justify-center"
+                  title="Edit item"
                 >
-                  Edit
+                  <Edit size={16} />
                 </button>
                 <button
                   onClick={() => handleDeleteStock(item.id)}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded text-sm transition-colors"
+                  className="bg-red-600 hover:bg-red-700 text-white p-2 rounded text-sm transition-colors flex items-center justify-center"
+                  title="Delete item"
                 >
-                  Delete
+                  <Trash2 size={16} />
                 </button>
               </div>
             </div>
