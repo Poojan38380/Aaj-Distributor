@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getStock, addStock, updateStock, deleteStock, updateStockQuantity } from '@/lib/actions'
@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { Header } from './Header'
 import { StockList } from './StockList'
 import { AddEditDialog } from './AddEditDialog'
+import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { StockItem, FormData, QuantityInputs } from './types'
 
 export function AdminDashboard() {
@@ -23,13 +24,32 @@ export function AdminDashboard() {
     description: ''
   })
   const [quantityInputs, setQuantityInputs] = useState<QuantityInputs>({})
+  const [confirmationDialog, setConfirmationDialog] = useState<{
+    isOpen: boolean
+    type: 'add' | 'remove' | 'delete' | null
+    item: StockItem | null
+    amount: number
+  }>({
+    isOpen: false,
+    type: null,
+    item: null,
+    amount: 0
+  })
+  const [isProcessing, setIsProcessing] = useState(false)
   const router = useRouter()
 
-  useEffect(() => {
-    checkAuthAndLoadStock()
+  const loadStock = useCallback(async () => {
+    try {
+      const data = await getStock()
+      setStock(data)
+    } catch (error) {
+      console.error('Error loading stock:', error)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  const checkAuthAndLoadStock = async () => {
+  const checkAuthAndLoadStock = useCallback(async () => {
     try {
       const authResult = await verifyAdminToken()
       if (!authResult.success) {
@@ -41,18 +61,11 @@ export function AdminDashboard() {
       console.error('Auth check failed:', error)
       router.push('/admin/login')
     }
-  }
+  }, [router, loadStock])
 
-  const loadStock = async () => {
-    try {
-      const data = await getStock()
-      setStock(data)
-    } catch (error) {
-      console.error('Error loading stock:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  useEffect(() => {
+    checkAuthAndLoadStock()
+  }, [checkAuthAndLoadStock])
 
   const handleAddStock = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -146,22 +159,44 @@ export function AdminDashboard() {
     }
   }
 
-  const handleDeleteStock = async (id: string) => {
+  const handleDeleteStock = (id: string) => {
     const item = stock.find(item => item.id === id)
     if (!item) return
     
-    setStock(prevStock => prevStock.filter(stockItem => stockItem.id !== id))
+    setConfirmationDialog({
+      isOpen: true,
+      type: 'delete',
+      item,
+      amount: 0
+    })
+  }
+
+  const confirmDeleteStock = async () => {
+    if (!confirmationDialog.item) return
     
-    const result = await deleteStock(id)
+    const item = confirmationDialog.item
+    setIsProcessing(true)
+    
+    setStock(prevStock => prevStock.filter(stockItem => stockItem.id !== item.id))
+    
+    const result = await deleteStock(item.id)
     if (result.success) {
       toast.success(`Deleted ${item.brand} from inventory`)
     } else {
       setStock(prevStock => [...prevStock, item])
       toast.error('Failed to delete item')
     }
+    
+    setIsProcessing(false)
+    setConfirmationDialog({
+      isOpen: false,
+      type: null,
+      item: null,
+      amount: 0
+    })
   }
 
-  const handleAddQuantity = async (id: string) => {
+  const handleAddQuantity = (id: string) => {
     const amount = parseInt(quantityInputs[id] || '0')
     if (isNaN(amount) || amount <= 0) {
       toast.error('Please enter a valid amount')
@@ -170,34 +205,57 @@ export function AdminDashboard() {
     
     const item = stock.find(item => item.id === id)
     if (!item) return
+    
+    setConfirmationDialog({
+      isOpen: true,
+      type: 'add',
+      item,
+      amount
+    })
+  }
+
+  const confirmAddQuantity = async () => {
+    if (!confirmationDialog.item) return
+    
+    const item = confirmationDialog.item
+    const amount = confirmationDialog.amount
+    setIsProcessing(true)
     
     const newQuantity = item.quantity + amount
     
     setStock(prevStock => 
       prevStock.map(stockItem => 
-        stockItem.id === id 
+        stockItem.id === item.id 
           ? { ...stockItem, quantity: newQuantity }
           : stockItem
       )
     )
-    setQuantityInputs(prev => ({ ...prev, [id]: '' }))
+    setQuantityInputs(prev => ({ ...prev, [item.id]: '' }))
     
-    const result = await updateStockQuantity(id, newQuantity)
+    const result = await updateStockQuantity(item.id, newQuantity)
     if (result.success) {
       toast.success(`Added ${amount} units to ${item.brand}. New total: ${newQuantity}`)
     } else {
       setStock(prevStock => 
         prevStock.map(stockItem => 
-          stockItem.id === id 
+          stockItem.id === item.id 
             ? { ...stockItem, quantity: item.quantity }
             : stockItem
         )
       )
       toast.error('Failed to update quantity')
     }
+    
+    setIsProcessing(false)
+    setConfirmationDialog({
+      isOpen: false,
+      type: null,
+      item: null,
+      amount: 0
+    })
   }
 
-  const handleRemoveQuantity = async (id: string) => {
+  const handleRemoveQuantity = (id: string) => {
     const amount = parseInt(quantityInputs[id] || '0')
     if (isNaN(amount) || amount <= 0) {
       toast.error('Please enter a valid amount')
@@ -207,30 +265,53 @@ export function AdminDashboard() {
     const item = stock.find(item => item.id === id)
     if (!item) return
     
+    setConfirmationDialog({
+      isOpen: true,
+      type: 'remove',
+      item,
+      amount
+    })
+  }
+
+  const confirmRemoveQuantity = async () => {
+    if (!confirmationDialog.item) return
+    
+    const item = confirmationDialog.item
+    const amount = confirmationDialog.amount
+    setIsProcessing(true)
+    
     const newQuantity = Math.max(0, item.quantity - amount)
     
     setStock(prevStock => 
       prevStock.map(stockItem => 
-        stockItem.id === id 
+        stockItem.id === item.id 
           ? { ...stockItem, quantity: newQuantity }
           : stockItem
       )
     )
-    setQuantityInputs(prev => ({ ...prev, [id]: '' }))
+    setQuantityInputs(prev => ({ ...prev, [item.id]: '' }))
     
-    const result = await updateStockQuantity(id, newQuantity)
+    const result = await updateStockQuantity(item.id, newQuantity)
     if (result.success) {
       toast.success(`Removed ${amount} units from ${item.brand}. New total: ${newQuantity}`)
     } else {
       setStock(prevStock => 
         prevStock.map(stockItem => 
-          stockItem.id === id 
+          stockItem.id === item.id 
             ? { ...stockItem, quantity: item.quantity }
             : stockItem
         )
       )
       toast.error('Failed to update quantity')
     }
+    
+    setIsProcessing(false)
+    setConfirmationDialog({
+      isOpen: false,
+      type: null,
+      item: null,
+      amount: 0
+    })
   }
 
   const handleQuantityInputChange = (id: string, value: string) => {
@@ -263,6 +344,64 @@ export function AdminDashboard() {
     setFormData({ brand: '', quantity: 0, price: 0, description: '' })
   }
 
+  const handleConfirmationClose = () => {
+    setConfirmationDialog({
+      isOpen: false,
+      type: null,
+      item: null,
+      amount: 0
+    })
+  }
+
+  const handleConfirmationConfirm = () => {
+    switch (confirmationDialog.type) {
+      case 'add':
+        confirmAddQuantity()
+        break
+      case 'remove':
+        confirmRemoveQuantity()
+        break
+      case 'delete':
+        confirmDeleteStock()
+        break
+    }
+  }
+
+  const getConfirmationDialogProps = () => {
+    if (!confirmationDialog.item) return null
+
+    const { type, item, amount } = confirmationDialog
+
+    switch (type) {
+      case 'add':
+        return {
+          title: 'Add Stock',
+          description: `Are you sure you want to add ${amount} units to ${item.brand}? This will increase the quantity from ${item.quantity} to ${item.quantity + amount}.`,
+          confirmText: 'Add Stock',
+          variant: 'success' as const,
+          icon: 'add' as const
+        }
+      case 'remove':
+        return {
+          title: 'Remove Stock',
+          description: `Are you sure you want to remove ${amount} units from ${item.brand}? This will decrease the quantity from ${item.quantity} to ${Math.max(0, item.quantity - amount)}.`,
+          confirmText: 'Remove Stock',
+          variant: 'warning' as const,
+          icon: 'remove' as const
+        }
+      case 'delete':
+        return {
+          title: 'Delete Item',
+          description: `Are you sure you want to permanently delete "${item.brand}" from your inventory? This action cannot be undone.`,
+          confirmText: 'Delete Item',
+          variant: 'destructive' as const,
+          icon: 'delete' as const
+        }
+      default:
+        return null
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -291,6 +430,16 @@ export function AdminDashboard() {
           onSubmit={editingItem ? handleUpdateStock : handleAddStock}
           onClose={handleDialogClose}
         />
+
+        {confirmationDialog.isOpen && getConfirmationDialogProps() && (
+          <ConfirmationDialog
+            isOpen={confirmationDialog.isOpen}
+            onClose={handleConfirmationClose}
+            onConfirm={handleConfirmationConfirm}
+            isLoading={isProcessing}
+            {...getConfirmationDialogProps()!}
+          />
+        )}
 
         <StockList
           stock={stock}
