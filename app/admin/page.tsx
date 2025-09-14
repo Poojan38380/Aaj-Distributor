@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getStock, addStock, updateStock, deleteStock, updateStockQuantity } from '@/lib/actions'
 import { logoutAdmin, verifyAdminToken } from '@/lib/auth'
 import Link from 'next/link'
-import { Edit, Trash2, Plus, Minus, Package, Settings, User, TrendingUp } from 'lucide-react'
+import { Edit, Trash2, Plus, Minus, Package, User, TrendingUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -71,6 +71,24 @@ export default function AdminDashboard() {
 
   const handleAddStock = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Create optimistic item
+    const optimisticItem: StockItem = {
+      id: `temp-${Date.now()}`, // Temporary ID
+      brand: formData.brand,
+      quantity: formData.quantity,
+      price: formData.price,
+      description: formData.description || null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+    
+    // Optimistic update - add to UI immediately
+    setStock(prevStock => [optimisticItem, ...prevStock])
+    setFormData({ brand: '', quantity: 0, price: 0, description: '' })
+    setShowAddForm(false)
+    
+    // Then sync with server
     const result = await addStock(
       formData.brand,
       formData.quantity,
@@ -79,9 +97,20 @@ export default function AdminDashboard() {
     )
     
     if (result.success) {
-      setFormData({ brand: '', quantity: 0, price: 0, description: '' })
-      setShowAddForm(false)
+      // Replace optimistic item with real data
       loadStock()
+      toast.success(`Added ${formData.brand} to inventory`)
+    } else {
+      // Revert on failure
+      setStock(prevStock => prevStock.filter(item => item.id !== optimisticItem.id))
+      setShowAddForm(true)
+      setFormData({ 
+        brand: formData.brand, 
+        quantity: formData.quantity, 
+        price: formData.price, 
+        description: formData.description 
+      })
+      toast.error('Failed to add item')
     }
   }
 
@@ -89,6 +118,28 @@ export default function AdminDashboard() {
     e.preventDefault()
     if (!editingItem) return
 
+    // Store original item for potential revert
+    const originalItem = editingItem
+
+    // Optimistic update - update UI immediately
+    setStock(prevStock => 
+      prevStock.map(stockItem => 
+        stockItem.id === editingItem.id 
+          ? { 
+              ...stockItem, 
+              brand: formData.brand,
+              quantity: formData.quantity,
+              price: formData.price,
+              description: formData.description || null,
+              updatedAt: new Date()
+            }
+          : stockItem
+      )
+    )
+    setEditingItem(null)
+    setFormData({ brand: '', quantity: 0, price: 0, description: '' })
+    
+    // Then sync with server
     const result = await updateStock(
       editingItem.id,
       formData.brand,
@@ -98,9 +149,24 @@ export default function AdminDashboard() {
     )
     
     if (result.success) {
-      setEditingItem(null)
-      setFormData({ brand: '', quantity: 0, price: 0, description: '' })
-      loadStock()
+      toast.success(`Updated ${formData.brand} successfully`)
+    } else {
+      // Revert on failure
+      setStock(prevStock => 
+        prevStock.map(stockItem => 
+          stockItem.id === originalItem.id 
+            ? originalItem
+            : stockItem
+        )
+      )
+      setEditingItem(originalItem)
+      setFormData({
+        brand: originalItem.brand,
+        quantity: originalItem.quantity,
+        price: originalItem.price,
+        description: originalItem.description || ''
+      })
+      toast.error('Failed to update item')
     }
   }
 
@@ -108,19 +174,17 @@ export default function AdminDashboard() {
     const item = stock.find(item => item.id === id)
     if (!item) return
     
+    // Optimistic update - remove from UI immediately
+    setStock(prevStock => prevStock.filter(stockItem => stockItem.id !== id))
+    
+    // Then sync with server
     const result = await deleteStock(id)
     if (result.success) {
-      loadStock()
       toast.success(`Deleted ${item.brand} from inventory`)
     } else {
+      // Revert on failure
+      setStock(prevStock => [...prevStock, item])
       toast.error('Failed to delete item')
-    }
-  }
-
-  const handleQuantityUpdate = async (id: string, newQuantity: number) => {
-    const result = await updateStockQuantity(id, newQuantity)
-    if (result.success) {
-      loadStock()
     }
   }
 
@@ -135,12 +199,30 @@ export default function AdminDashboard() {
     if (!item) return
     
     const newQuantity = item.quantity + amount
+    
+    // Optimistic update - update UI immediately
+    setStock(prevStock => 
+      prevStock.map(stockItem => 
+        stockItem.id === id 
+          ? { ...stockItem, quantity: newQuantity }
+          : stockItem
+      )
+    )
+    setQuantityInputs(prev => ({ ...prev, [id]: '' }))
+    
+    // Then sync with server
     const result = await updateStockQuantity(id, newQuantity)
     if (result.success) {
-      setQuantityInputs(prev => ({ ...prev, [id]: '' }))
-      loadStock()
       toast.success(`Added ${amount} units to ${item.brand}. New total: ${newQuantity}`)
     } else {
+      // Revert on failure
+      setStock(prevStock => 
+        prevStock.map(stockItem => 
+          stockItem.id === id 
+            ? { ...stockItem, quantity: item.quantity }
+            : stockItem
+        )
+      )
       toast.error('Failed to update quantity')
     }
   }
@@ -156,12 +238,30 @@ export default function AdminDashboard() {
     if (!item) return
     
     const newQuantity = Math.max(0, item.quantity - amount)
+    
+    // Optimistic update - update UI immediately
+    setStock(prevStock => 
+      prevStock.map(stockItem => 
+        stockItem.id === id 
+          ? { ...stockItem, quantity: newQuantity }
+          : stockItem
+      )
+    )
+    setQuantityInputs(prev => ({ ...prev, [id]: '' }))
+    
+    // Then sync with server
     const result = await updateStockQuantity(id, newQuantity)
     if (result.success) {
-      setQuantityInputs(prev => ({ ...prev, [id]: '' }))
-      loadStock()
       toast.success(`Removed ${amount} units from ${item.brand}. New total: ${newQuantity}`)
     } else {
+      // Revert on failure
+      setStock(prevStock => 
+        prevStock.map(stockItem => 
+          stockItem.id === id 
+            ? { ...stockItem, quantity: item.quantity }
+            : stockItem
+        )
+      )
       toast.error('Failed to update quantity')
     }
   }
@@ -179,12 +279,6 @@ export default function AdminDashboard() {
     if (quantity >= 50) return 'text-green-600 dark:text-green-400'
     if (quantity >= 10) return 'text-orange-600 dark:text-orange-400'
     return 'text-red-600 dark:text-red-400'
-  }
-
-  const getQuantityBadgeColor = (quantity: number) => {
-    if (quantity >= 50) return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-    if (quantity >= 10) return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-    return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
   }
 
   const startEdit = (item: StockItem) => {
