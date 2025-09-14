@@ -5,7 +5,12 @@ import { useRouter } from 'next/navigation'
 import { getStock, addStock, updateStock, deleteStock, updateStockQuantity } from '@/lib/actions'
 import { logoutAdmin, verifyAdminToken } from '@/lib/auth'
 import Link from 'next/link'
-import { Edit, Trash2, Plus, Minus } from 'lucide-react'
+import { Edit, Trash2, Plus, Minus, Package, Settings, User, TrendingUp } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { toast } from 'sonner'
 
 interface StockItem {
   id: string
@@ -100,11 +105,15 @@ export default function AdminDashboard() {
   }
 
   const handleDeleteStock = async (id: string) => {
-    if (confirm('Are you sure you want to delete this item?')) {
-      const result = await deleteStock(id)
-      if (result.success) {
-        loadStock()
-      }
+    const item = stock.find(item => item.id === id)
+    if (!item) return
+    
+    const result = await deleteStock(id)
+    if (result.success) {
+      loadStock()
+      toast.success(`Deleted ${item.brand} from inventory`)
+    } else {
+      toast.error('Failed to delete item')
     }
   }
 
@@ -117,42 +126,65 @@ export default function AdminDashboard() {
 
   const handleAddQuantity = async (id: string) => {
     const amount = parseInt(quantityInputs[id] || '0')
-    if (isNaN(amount) || amount <= 0) return
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Please enter a valid amount')
+      return
+    }
     
     const item = stock.find(item => item.id === id)
     if (!item) return
-    
-    const confirmed = confirm(`Add ${amount} units to ${item.brand}? New total will be ${item.quantity + amount}.`)
-    if (!confirmed) return
     
     const newQuantity = item.quantity + amount
     const result = await updateStockQuantity(id, newQuantity)
     if (result.success) {
       setQuantityInputs(prev => ({ ...prev, [id]: '' }))
       loadStock()
+      toast.success(`Added ${amount} units to ${item.brand}. New total: ${newQuantity}`)
+    } else {
+      toast.error('Failed to update quantity')
     }
   }
 
   const handleRemoveQuantity = async (id: string) => {
     const amount = parseInt(quantityInputs[id] || '0')
-    if (isNaN(amount) || amount <= 0) return
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Please enter a valid amount')
+      return
+    }
     
     const item = stock.find(item => item.id === id)
     if (!item) return
     
     const newQuantity = Math.max(0, item.quantity - amount)
-    const confirmed = confirm(`Remove ${amount} units from ${item.brand}? New total will be ${newQuantity}.`)
-    if (!confirmed) return
-    
     const result = await updateStockQuantity(id, newQuantity)
     if (result.success) {
       setQuantityInputs(prev => ({ ...prev, [id]: '' }))
       loadStock()
+      toast.success(`Removed ${amount} units from ${item.brand}. New total: ${newQuantity}`)
+    } else {
+      toast.error('Failed to update quantity')
     }
   }
 
   const handleQuantityInputChange = (id: string, value: string) => {
     setQuantityInputs(prev => ({ ...prev, [id]: value }))
+  }
+
+  // Helper functions for brandbook compliance
+  const getTotalValue = () => {
+    return stock.reduce((total, item) => total + (item.quantity * item.price), 0)
+  }
+
+  const getQuantityColor = (quantity: number) => {
+    if (quantity >= 50) return 'text-green-600 dark:text-green-400'
+    if (quantity >= 10) return 'text-orange-600 dark:text-orange-400'
+    return 'text-red-600 dark:text-red-400'
+  }
+
+  const getQuantityBadgeColor = (quantity: number) => {
+    if (quantity >= 50) return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+    if (quantity >= 10) return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+    return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
   }
 
   const startEdit = (item: StockItem) => {
@@ -178,194 +210,227 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent mx-auto"></div>
+          <p className="text-sm text-muted-foreground">Loading inventory...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Admin Dashboard
-            </h1>
-            <p className="text-gray-600 dark:text-gray-300">
-              Manage your stock
-            </p>
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-6 max-w-6xl">
+        {/* Compact Header */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-3">
+            <Package className="h-6 w-6 text-primary" />
+            <div>
+              <h1 className="text-xl font-semibold text-foreground">
+                Stock Manager
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {stock.length} items • ₹{getTotalValue().toLocaleString()} total
+              </p>
+            </div>
           </div>
-          <div className="flex gap-4">
-            <button
+          <div className="flex gap-2">
+            <Button
               onClick={() => setShowAddForm(true)}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
+              size="sm"
+              className="bg-green-600 hover:bg-green-700"
             >
-              Add Item
-            </button>
-            <button
+              <Plus className="h-4 w-4 mr-1" />
+              Add
+            </Button>
+            <Button
               onClick={logout}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
+              variant="outline"
+              size="icon"
+              className="h-9 w-9"
             >
-              Logout
-            </button>
+              <User className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
-        {/* Add/Edit Form Modal */}
-        {(showAddForm || editingItem) && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+        {/* Add/Edit Form Dialog */}
+        <Dialog open={showAddForm || !!editingItem} onOpenChange={() => {
+          setShowAddForm(false)
+          setEditingItem(null)
+          setFormData({ brand: '', quantity: 0, price: 0, description: '' })
+        }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
                 {editingItem ? 'Edit Item' : 'Add New Item'}
-              </h2>
-              <form onSubmit={editingItem ? handleUpdateStock : handleAddStock}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Brand
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.brand}
-                      onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Quantity
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.quantity}
-                      onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Price (₹)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Description (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-3 mt-6">
-                  <button
-                    type="submit"
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition-colors"
-                  >
-                    {editingItem ? 'Update' : 'Add'} Item
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAddForm(false)
-                      setEditingItem(null)
-                      setFormData({ brand: '', quantity: 0, price: 0, description: '' })
-                    }}
-                    className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-md transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={editingItem ? handleUpdateStock : handleAddStock} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="brand" className="flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Brand Name
+                </Label>
+                <Input
+                  id="brand"
+                  type="text"
+                  value={formData.brand}
+                  onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                  placeholder="Enter brand name"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quantity" className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Quantity
+                </Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
+                  placeholder="0"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="price" className="flex items-center gap-2">
+                  <span className="text-lg">₹</span>
+                  Price
+                </Label>
+                <Input
+                  id="price"
+                  type="number"
+                  step="0.01"
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description" className="flex items-center gap-2">
+                  <Edit className="h-4 w-4" />
+                  Description (Optional)
+                </Label>
+                <Input
+                  id="description"
+                  type="text"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Enter description"
+                />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowAddForm(false)
+                    setEditingItem(null)
+                    setFormData({ brand: '', quantity: 0, price: 0, description: '' })
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" className="bg-primary">
+                  {editingItem ? 'Update' : 'Add'} Item
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
-        {/* Stock List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Stock List - Compact Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {stock.map((item) => (
             <div
               key={item.id}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6"
+              className="bg-card border rounded-lg p-4 hover:shadow-md transition-shadow"
             >
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                {item.brand}
-              </h3>
+              {/* Header with brand and actions */}
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <h3 className="font-semibold text-foreground truncate">
+                    {item.brand}
+                  </h3>
+                </div>
+                <div className="flex gap-1 ml-2">
+                  <Button
+                    onClick={() => startEdit(item)}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    onClick={() => handleDeleteStock(item.id)}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Quantity and Price - Visual Display */}
               <div className="space-y-2 mb-4">
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {item.quantity} available
-                </p>
-                <p className="text-lg text-gray-600 dark:text-gray-300">
-                  ₹{item.price}
-                </p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    <span className={`text-lg font-bold ${getQuantityColor(item.quantity)}`}>
+                      {item.quantity}
+                    </span>
+                    <span className="text-sm text-muted-foreground">units</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-lg">₹</span>
+                    <span className="text-lg font-semibold text-foreground">
+                      {item.price.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+                
                 {item.description && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <p className="text-sm text-muted-foreground truncate">
                     {item.description}
                   </p>
                 )}
               </div>
               
-              {/* Quantity controls */}
-              <div className="mb-4">
+              {/* Compact Quantity Controls */}
+              <div className="space-y-2">
                 <div className="flex gap-2">
-                  <input
+                  <Input
                     type="number"
                     placeholder="Amount"
                     value={quantityInputs[item.id] || ''}
                     onChange={(e) => handleQuantityInputChange(item.id, e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 h-8 text-sm"
                     min="1"
                   />
-                  <button
+                  <Button
                     onClick={() => handleAddQuantity(item.id)}
-                    className="bg-green-600 hover:bg-green-700 text-white p-2 rounded text-sm transition-colors flex items-center justify-center"
-                    title="Add quantity"
+                    size="icon"
+                    className="h-8 w-8 bg-green-600 hover:bg-green-700"
                   >
-                    <Plus size={16} />
-                  </button>
-                  <button
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  <Button
                     onClick={() => handleRemoveQuantity(item.id)}
-                    className="bg-orange-600 hover:bg-orange-700 text-white p-2 rounded text-sm transition-colors flex items-center justify-center"
-                    title="Remove quantity"
+                    size="icon"
+                    className="h-8 w-8 bg-orange-600 hover:bg-orange-700"
                   >
-                    <Minus size={16} />
-                  </button>
+                    <Minus className="h-4 w-4" />
+                  </Button>
                 </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex gap-2 justify-end">
-                <button
-                  onClick={() => startEdit(item)}
-                  className="bg-yellow-600 hover:bg-yellow-700 text-white p-2 rounded text-sm transition-colors flex items-center justify-center"
-                  title="Edit item"
-                >
-                  <Edit size={16} />
-                </button>
-                <button
-                  onClick={() => handleDeleteStock(item.id)}
-                  className="bg-red-600 hover:bg-red-700 text-white p-2 rounded text-sm transition-colors flex items-center justify-center"
-                  title="Delete item"
-                >
-                  <Trash2 size={16} />
-                </button>
               </div>
             </div>
           ))}
@@ -373,9 +438,20 @@ export default function AdminDashboard() {
 
         {stock.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400 text-lg">
-              No items found. Add some items to get started.
+            <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground text-lg mb-2">
+              No items found
             </p>
+            <p className="text-sm text-muted-foreground mb-4">
+              Add some items to get started
+            </p>
+            <Button
+              onClick={() => setShowAddForm(true)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add First Item
+            </Button>
           </div>
         )}
 
@@ -383,7 +459,7 @@ export default function AdminDashboard() {
         <div className="mt-8 text-center">
           <Link
             href="/"
-            className="text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             ← Back to Home
           </Link>
