@@ -14,3 +14,4 @@ export interface StockStats {
   lowStockItems: number
   recentAdditions: number
 }
+
