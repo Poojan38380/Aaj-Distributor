@@ -71,14 +71,6 @@ npm run dev
 - View total quantity and individual brand availability
 - Check prices and descriptions
 
-### For Admin
-- Navigate to `/admin` to access the admin dashboard
-- Use password `admin123` to login (change this in production)
-- Add new items with brand, quantity, price, and description
-- Edit existing items
-- Update quantities quickly
-- Delete items when needed
-
 ## Admin Features
 
 - **Add Items**: Create new entries with brand, quantity, price, and optional description
