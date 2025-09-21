@@ -1,5 +1,5 @@
 import { getStock } from '@/lib/actions'
-import { HeroSection, StockGrid } from '@/components/home'
+import { HeroSection, StockGrid, ContactSection } from '@/components/home'
 
 export default async function Home() {
   const stock = await getStock()
@@ -11,6 +11,8 @@ export default async function Home() {
         <HeroSection />
         {/* Stock Grid */}
         <StockGrid items={stock} />
+        {/* Contact Section */}
+        <ContactSection />
       </div>
     </div>
   )
